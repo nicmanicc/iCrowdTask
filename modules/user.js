@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const bcrypt = require('bcrypt');
 const validator = require("email-validator");
+const uniqueValidator = require('mongoose-unique-validator')
 
 const saltRounds = 10;
 /**User schema contains: 
@@ -42,6 +43,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         validate: validator.validate,
         required: [true, 'Email name required'],
+        unique: true
     },
     password: {
         type: String,
@@ -106,5 +108,7 @@ userSchema.pre('save', function(next) {
         });
     });
 });
+//Plugin to ensure field is unique.
+userSchema.plugin(uniqueValidator)
 
 module.exports = userSchema;

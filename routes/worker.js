@@ -2,11 +2,13 @@ const express = require("express");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const userSchema = require("../modules/user");
+const bcrypt = require('bcrypt');
 const router = express.Router();
 
 router.use(bodyParser.urlencoded({extended: true}));
 
 const worker_model = mongoose.model("worker", userSchema);
+const saltRounds = 10;
 
 //Retrieve, add and remove workers at URI: /workers
 router.route('/workers')
@@ -68,31 +70,42 @@ router.route('/workers/:worker_email')
 })
 //Update specified worker
 .put((req, res) => {
-    worker_model.update(
-        {email: req.params.worker_email},
-        {
-            country: req.body.inputCountry,
-            firstName: req.body.inputName,
-            lastName: req.body.inputLname,
-            email: req.body.inputEmail,
-            password: req.body.inputPassword,
-            confirmedPassword: req.body.inputConfirmPassword,
-            address: req.body.inputAddress,
-            city: req.body.inputCity,
-            region: req.body.inputRegion,
-            zip: req.body.inputZip,
-            phone: req.body.inputPhone
-        },
-        {overwrite: true},
-        (err) => {
-            if (err) {
-                res.send(err);
-            } else {
-                res.send("Update successful");
-            }
-        }
-    )
+    if(req.body.inputPassword == req.body.inputConfirmPassword) {
+        bcrypt.genSalt(saltRounds, function (err, salt) {
+            if (err) {res.send(err)}
     
+            bcrypt.hash(req.body.inputPassword, salt, function(err, hash) {
+                if (err) {res.send(err)}
+    
+                worker_model.findOneAndUpdate(
+                    {email: req.params.worker_email},
+                    {
+                        country: req.body.inputCountry,
+                        firstName: req.body.inputName,
+                        lastName: req.body.inputLname,
+                        email: req.body.inputEmail,
+                        password: hash,
+                        confirmedPassword: hash,
+                        address: req.body.inputAddress,
+                        city: req.body.inputCity,
+                        region: req.body.inputRegion,
+                        zip: req.body.inputZip,
+                        phone: req.body.inputPhone
+                    },
+                    {returnNewDocument: true},
+                    (err, user) => {
+                        if (err) {
+                            res.send(err);
+                        } else {
+                            res.send(user);
+                        }
+                    }
+                )
+            });
+        });
+    } else {
+        res.send("Passwords don't match");
+    }
 })
 //Delete specified worker
 .delete((req, res) => {
@@ -108,24 +121,36 @@ router.route('/workers/:worker_email')
 })
 //Update workers address, mobile phone and password.
 .patch((req, res) => {      
-    worker_model.update(
-        {email: req.params.worker_email},
-        {$set: 
-            {
-                address: req.body.inputAddress,
-                phone: req.body.inputPhone,
-                password: req.body.inputPassword,
-                confirmedPassword: req.body.inputConfirmPassword
-            }
-        },
-        (err) => {
-            if (err) {
-                res.send(err);
-            } else {
-                res.send("Update successful");
-            }
-        }
-    )
+    if(req.body.inputPassword == req.body.inputConfirmPassword) {
+        bcrypt.genSalt(saltRounds, function (err, salt) {
+            if (err) {res.send(err)}
+    
+            bcrypt.hash(req.body.inputPassword, salt, function(err, hash) {
+                if (err) {res.send(err)}
+
+                worker_model.findOneAndUpdate(
+                    {email: req.params.worker_email},
+                    {$set: {
+                        address: req.body.inputAddress,
+                        phone: req.body.inputPhone,
+                        password: hash,
+                        confirmedPassword: hash
+                        }
+                    },
+                    {returnNewDocument: true},
+                    (err, user) => {
+                        if (err) {
+                            res.send(err);
+                        } else {
+                            res.send(user);
+                        }
+                    }
+                )
+            });
+        });
+    } else {
+        res.send("Passwords don't match");
+    }
 });
 
 module.exports = router;
