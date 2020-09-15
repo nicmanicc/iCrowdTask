@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.use(bodyParser.urlencoded({extended: true}));
 
-const worker_model = mongoose.model("worker", userSchema);
+const worker_model = mongoose.model("user", userSchema);
 const saltRounds = 10;
 
 //Retrieve, add and remove workers at URI: /workers
