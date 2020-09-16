@@ -3,21 +3,20 @@ const app = express();
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20');
 const cookieSession = require('cookie-session');
-const keys = require('../config/keys');
 
 const router = express.Router();
 
 router.use(cookieSession({
     maxAge: 24 * 60 * 60 * 1000, // One day in milliseconds
-    keys: [keys.cookie.cookie_key]
+    keys: [process.env.cookie_key]
 }));
 
 router.use(passport.initialize()); // Used to initialize passport
 router.use(passport.session()); // Used to persist login sessions
 
 passport.use(new GoogleStrategy({
-        clientID: keys.google.client_id,
-        clientSecret: keys.google.client_secret,
+        clientID: process.env.client_id,
+        clientSecret: process.env.client_secret,
         callbackURL: 'https://mysterious-atoll-21625.herokuapp.com/auth/google/redirect'
     },
     (accessToken, refreshToken, profile, done) => {
