@@ -8,6 +8,7 @@ db.on('error', console.error.bind(console, 'connection error: '));
 
 app.use(require('./routes/auth'));
 app.use(require('./routes/worker'));
+app.use(require('./routes/googleAuth'));
 
 let port = process.env.PORT;
 if (port == null || port == "") {
