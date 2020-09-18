@@ -80,7 +80,9 @@ const userSchema = new mongoose.Schema({
             },
             message: props => `${props.value} is not a valid phone number!`
         }
-    }
+    },
+    token: String,
+    tokenExpiry: Date
 });
 //Validate that both password and confirmed password match
 userSchema.path('confirmedPassword').validate(function (v) {

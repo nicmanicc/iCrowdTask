@@ -137,7 +137,7 @@ router.route('/workers/:worker_email')
                         confirmedPassword: hash
                         }
                     },
-                    {returnNewDocument: true},
+                    {returnNewDocument: false},
                     (err, user) => {
                         if (err) {
                             res.send(err);

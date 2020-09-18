@@ -5,12 +5,17 @@ const mongoose = require("mongoose");
 const userSchema = require("../modules/user");
 const bcrypt = require('bcrypt');
 const https = require("https");
+const nodemailer = require("nodemailer");
+//const keys = require("../config/keys");
+const async = require('async');
+const crypto = require("crypto");
 const router = express.Router();
 
 router.use(bodyParser.urlencoded({extended: true}))
 
 //Create model
 const user = mongoose.model("user", userSchema);
+const saltRounds = 10;
 
 //------------------------------------------------------------------REGISTRATION PAGE
 router.get('/reg', (req, res) => {
@@ -125,4 +130,110 @@ router.post('/', (req, res) => {
     });
 });
 
+//-----------------------------------------------------------------------FORGOT PASSWORD ROUTE
+router.get('/forgot', (req,res) => {
+    //Send file that asks user for their email
+    res.sendFile('/public/forgotPassword.html', {root: __dirname + '/../'});
+});
+
+router.post('/requestReset', (req, res) => {
+    //Waterfall to ensure a result is received before continuing to next function
+    async.waterfall([
+        //Create a token using crypto
+        function(done) {
+          crypto.randomBytes(20, function(err, buf) {
+            var token = buf.toString('hex');
+            done(err, token);
+          });
+        },
+        //Find user using entered email and assign token and token expiry date to their account
+        function(token, done) {
+            //Find user with user email
+            user.findOne({ email: req.body.userEmail }, function(err, account) {
+                if (err) {
+                    req.send(err);
+                }
+                if (!account) {
+                    res.send('Account does not exist');
+                }
+                //Assign token to user
+                account.token = token;
+                //Make token expire an hour from creation
+                account.tokenExpiry = Date.now() + 3600000; // 1 hour
+                //Save user
+                account.save(function(err) {
+                    done(err, token, account);
+                });
+            });
+        },
+        //Create transport and send mail with specific password reset link.
+        function(token, account, done) {
+            //Create nodemailer transport using gmail smtp
+            var transport = nodemailer.createTransport({
+                host: 'smtp.googlemail.com',
+                port: 465,
+                auth: {
+                //user: keys.gmail.email,
+                user: process.env.GMAIL_EMAIL,
+                //pass: keys.gmail.pass
+                pass: process.env.GMAIL_PASS
+                },
+                tls: {
+                    rejectUnauthorized: false
+                }
+            });
+            //Send password reset email
+            transport.sendMail({
+                //Gmail account used by the server
+                //from: keys.gmail.email,
+                from: process.env.GMAIL_EMAIL,
+                //Target email account
+                to: account.email, 
+                subject: "iCrowdTask Password Reset", 
+                //Reset password link with token
+                text: "Reset password link: " + 'http://' + req.headers.host + '/reset/' + token + '\n\n' //Content
+            }, (error, info) => {
+                if (error) { return res.send(error);}
+                console.log('Message %s sent: %s', info.messageId, info.response);
+                done(error, 'done');
+            });
+        }
+      ], function(err) {
+        if (err) return next(err);
+        res.redirect('/forgot');
+      });
+})
+
+router.get('/reset/:token', function(req, res) {
+    //Find user that matches token in URI and make sure the link was clicked within an hour
+    user.findOne({ token: req.params.token , tokenExpiry: { $gt: Date.now() } }, function(err, account) {
+        if (err) {
+            res.send(err);
+        }
+        //Send file that allows user to enter new password
+        res.sendFile('/public/resetPassword.html', {root: __dirname + '/../'});
+        
+    });
+});
+
+router.post('/reset/:token', function(req, res) {
+    //Find user that matches token in URI and make sure the password was entered before token expiry
+    user.findOne({ token: req.params.token , tokenExpiry: { $gt: Date.now() } }, function(err, account) {
+        //Check if passwords match
+        if (req.body.password == req.body.confirmPassword) {
+            //Assign passwords (plain text now - will be hashed by pre-save function created in user schema)
+            account.password = req.body.password;
+            account.confirmedPassword = req.body.password;
+            //Save passwords to be hashed and stored
+            account.save();
+            //Redirect to login page
+            res.redirect("/");
+        } else {
+            res.send("Passwords don't match");
+        }
+    });
+});
+
+//TO_DO
+//SET EMAIL AND PASSWORD TO HEROKU ENV VAR
 module.exports = router;
