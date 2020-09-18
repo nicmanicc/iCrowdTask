@@ -9,13 +9,91 @@ const nodemailer = require("nodemailer");
 //const keys = require("../config/keys");
 const async = require('async');
 const crypto = require("crypto");
+const passport = require('passport');
+const passportLocal = require('passport-local').Strategy;
+const GoogleStrategy = require('passport-google-oauth20');
+const session = require('express-session');
+
 const router = express.Router();
 
 router.use(bodyParser.urlencoded({extended: true}))
 
 //Create model
 const user = mongoose.model("user", userSchema);
-const saltRounds = 10;
+
+router.use(session({
+    secret : process.env.cookie_key,
+    //secret: keys.cookie.cookie_key,
+    resave: false,
+    saveUninitialized: false, 
+    cookie: {
+        maxAge: 3 * 60 * 60 * 1000  //cookie lasts 3 hours
+    }
+}))
+
+//Initialise passport
+router.use(passport.initialize()); 
+//Persists login session
+router.use(passport.session());
+//------------------------------------------------------------------LOCAL SIGN IN AUTH
+passport.use('login', new passportLocal({
+    //custom field (change default username to check email)
+    usernameField: 'email',
+    passwordField: 'password'
+}, function(email, password, done) {
+    //Find account with specified email from login page
+    user.findOne({email: email}, (err, account) => {
+        if (err) return done(err);
+        if (!account) {
+            console.log('Account does not exist');
+            return done(null, false)
+        }
+        //Use bcrypt to compare entered password with hashed password
+        bcrypt.compare(password, account.password, function(err, isMatch) {
+            if (err) { console.log(err); }
+            //Allow user to proceed if all credentials are correct
+            if (isMatch) {
+                return done(null, account);
+            //Entered password is incorrect
+            } else {
+                return done(null, false);
+            }
+        });
+    });
+}));
+//------------------------------------------------------------------GOOGLE SIGN IN AUTH
+passport.use(new GoogleStrategy({
+        clientID: process.env.client_id,
+        //clientID: keys.google.client_id,
+        clientSecret: process.env.client_secret,
+        //clientSecret: keys.google.client_secret,
+        callbackURL: 'https://mysterious-atoll-21625.herokuapp.com/auth/google/redirect'
+        //callbackURL: 'http://localhost:8080/auth/google/redirect'
+    },
+    (accessToken, refreshToken, profile, done) => {
+        done(null, profile); // passes the profile data to serializeUser
+    }
+));
+
+// Insert info into cookie
+passport.serializeUser((user, done) => {
+    done(null, user);
+});
+
+// Extract info from cookie
+passport.deserializeUser((user, done) => {
+    done(null, user);
+});
+
+router.get('/auth/google', passport.authenticate('google', {
+    //Specify required data from google
+    scope: ['profile']
+}));
+
+router.get('/auth/google/redirect', passport.authenticate('google'), (req, res) => {
+    //Redirect user to homepage
+    res.redirect('/');
+});
 
 //------------------------------------------------------------------REGISTRATION PAGE
 router.get('/reg', (req, res) => {
@@ -68,11 +146,12 @@ router.post('/reg', (req, res) => {
     });
 
     //Add user to MailChimp
-    const apiKey = "5361fa8643eff9a6da475b174889c8a5-us17";
+    //const apiKey = keys.mailchimp.api;
+    const apiKey = process.env.MAILCHIMP_KEY
     const url = "https://us17.api.mailchimp.com/3.0/lists/d880776236";
     const options = {
         method: "POST",
-        auth: "nic:5361fa8643eff9a6da475b174889c8a5-us17"
+        auth: "nic:" + apiKey
     }
     //Create object with user details
     const data = {
@@ -97,37 +176,34 @@ router.post('/reg', (req, res) => {
     request.write(jsonData);
     request.end();
 });
+//-----------------------------------------------------------------------HOME PAGE
+router.get('/', (req, res) => {
+    //Check if user is authenticated, if yes direct them to the home page
+    if (req.isAuthenticated()) {
+        res.sendFile('/public/reqtask.html', {root: __dirname + '/../'});
+    //if not, direct them to the login page
+    } else {
+        res.redirect('/login');
+    }
+})
 
 //-----------------------------------------------------------------------LOGIN PAGE
-router.get('/', (req, res) => {
+//Send the login page when requested
+router.get('/login', (req, res) => {
     res.sendFile('/public/reqlogin.html', {root: __dirname + '/../'});
 });
-
-router.post('/', (req, res) => {
-    const loginEmail = req.body.loginEmail;
-    const loginPassword = req.body.loginPassword;
-    //Look for entered email in the database
-    user.findOne({ email: loginEmail }, function (err, user) {
-        if (err) { console.log(err); }
-        //If user is null, email didn't exist in database.
-        if(!isNull(user)) {
-            //Compare entered password with stored hash if user exists
-            bcrypt.compare(loginPassword, user.password, function(err, isMatch) {
-                if (err) { console.log(err); }
-                //Allow user to proceed if all credentials are correct
-                if (isMatch) {
-                    res.sendFile('/public/reqtask.html', {root: __dirname + '/../'});
-                //Tell user entered password is incorrect
-                } else {
-                    res.send("Password entered was incorrect.");
-                }
-            });
-        //Tell use their entered email doesn't exist in database
-        } else {
-            res.send(loginEmail + " does not exist in our database.");
-        }
-        
-    });
+//Authenticate user details with custom local strategy
+router.post('/login', passport.authenticate('login', {
+    //redirect back to login page if login fails
+    failureRedirect: '/login'
+}), function(req, res) {
+    //Check if the 'remember me' checkbox wasn't clicked
+    if (!req.body.checkbox) {
+        //Don't remember client and remove cookie when client closes browser
+        req.session.cookie.expires = false;
+    }
+    //redirect to home page
+    res.redirect('/');
 });
 
 //-----------------------------------------------------------------------FORGOT PASSWORD ROUTE
@@ -235,5 +311,5 @@ router.post('/reset/:token', function(req, res) {
 });
 
 //TO_DO
-//SET EMAIL AND PASSWORD TO HEROKU ENV VAR
+//SET EMAIL, PASSWORD AND MAILCHIMP API KEY TO HEROKU ENV VAR
 module.exports = router;

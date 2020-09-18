@@ -31,14 +31,16 @@
             </form>
             <h4 class="card-title mb-4 mt-1 text-muted">Sign in</h4>
             <p class="float-right">Don't have an account?</p>
-            <form action="/" method="POST">
+            <form action="/login" method="POST">
                 <div class="form-group">
                     <label>Email</label>
-                    <input name="loginEmail" class="form-control" placeholder="Example: john12@gmail.com" type="email" required>
+                    <input name="email" class="form-control" placeholder="Example: john12@gmail.com" type="email" required>
                 </div> <!-- form-group// -->
                 <div class="form-group">
-                    <label>Password</label>
-                    <input name="loginPassword" class="form-control" placeholder="******" type="password" required>
+                    <label for="password">Password</label>
+                    <input name="password" class="form-control" placeholder="******" type="password" required>
+                    <label for="checkbox">Remember me</label>
+                    <input name="checkbox" type="checkbox">
                     <a class="float-right" href="/forgot">Forgot password?</a>
                 </div> <!-- form-group// -->
                 <div class="form-group">
@@ -47,7 +49,7 @@
             </form>
             <form action="/auth/google" method="GET">
                 <div class="form-group">
-                    <button type="submit" class="btn btn-block" style="color: #6c757d; background: transparent; border-color: #6c757d" > <img src='/images/google.png' style='width: 20px; height: 20px; text-align: left;'> Login with Google</button>
+                    <button type="submit" class="btn btn-outline-info btn-block"> <img src='https://www.freepnglogos.com/uploads/google-logo-png/google-logo-png-suite-everything-you-need-know-about-google-newest-0.png' style='width: 20px; height: 20px; text-align: left;'> Login with Google</button>
                 </div> <!-- form-group// -->
             </form>
         </article>
